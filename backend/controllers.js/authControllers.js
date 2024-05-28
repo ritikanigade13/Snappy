@@ -1,11 +1,38 @@
 const User = require("../models/userModel");
 const bcrypt = require("bcryptjs");
+const generateTokenSetCookie = require("../utils/generateToken");
 
 const loginUser = async (req, res) => {
-  res.send("logged In");
+  try {
+    const{username, password}=req.body;
+    const user = await User.findOne({username});
+    const isPasswordCorrect = await bcrypt.compare(password,user?.password || "");
+
+    if(!user || !isPasswordCorrect){
+      return res.status(400).json({error:"Invalid username or password"});
+    }
+    generateTokenSetCookie(user._id, res);
+
+    res.status(200).json({
+      _id:user._id,
+      fullName:user.fullName,
+      username:user.username,
+      profilePic:user.profilePic,
+    })
+
+  } catch (error) {
+    console.log("Error in login credentials",error.message);
+    res.status(500).json({error:"Internal server error"});
+  }
 };
 const logout = async (req, res) => {
-  res.send("logout");
+  try {
+    res.cookie("jwt","",{maxAge:0});
+    res.status(200).json({message:"Logged out successfully"});
+  } catch (error) {
+    console.log("Error in logout", error.message);
+    res.status(500).json({error:"Internal server error"})
+  }
 };
 const signUp = async (req, res) => {
   try {
@@ -33,6 +60,7 @@ const signUp = async (req, res) => {
       profilePic: gender === "male" ? boyProfilePic : girlProfilePic,
     });
     if(newUser){
+      await generateTokenSetCookie(newUser._id,res);
     await newUser.save();
     return res.status(200).json({
       _id: newUser._id,
